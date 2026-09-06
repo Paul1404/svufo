@@ -80,11 +80,21 @@ update the appropriate canonical documentation in the same change.
   reapplied on every import. That is how a sub-group becomes a point without
   restructuring the sheets. It shifts hours between departments, so it is
   recorded as a repair and never inferred.
-- A merged spelling is stored in `helper_hour_name_aliases` and reapplied on
-  every import, because importing replaces the monthly sheets and would
-  otherwise undo the rename. Merging also rewrites the hours already stored, so
-  both halves have to stay together. Aliases never chain: a target may not
-  itself be a source.
+- Helpers and occasions are catalogues (`helper_hour_persons`,
+  `helper_hour_events`), never typed. Free text was the single largest source of
+  bad data: 186 spellings for about 170 people and 41 for some 15 occasions.
+  Entry offers search, selection and an explicit "create"; typing only filters.
+  Do not reintroduce a free-text name or event field anywhere.
+- `helper_hours.nachname`, `vorname` and `veranstaltung` are a mirror of the
+  catalogue entry, kept so search, sorting and export need no join. They are
+  written only from the catalogue, never from user input.
+- `helper_hour_aliases` remembers which spreadsheet spelling means which
+  catalogue entry. The list stays free text while it is maintained outside
+  Rendant, so the import resolves against catalogue then alias, and asks once
+  per unknown spelling rather than once per row. An unresolved spelling blocks
+  the import instead of silently creating a second person.
+- Merging two catalogue entries moves the hours and keeps the losing spelling as
+  an alias, so a future import resolves to the survivor.
 - Similar names are reported, never merged automatically. The same similarity
   finds real siblings and married couples, so every merge needs a person. Where
   a list is aggregated per spelling before the comparison, the entry count has

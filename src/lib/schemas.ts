@@ -183,18 +183,60 @@ const helperHourPersonName = v.pipe(
 	v.maxLength(120),
 );
 
-export const HelperHourNameAliasCreateSchema = v.object({
-	von_nachname: helperHourPersonName,
-	von_vorname: helperHourPersonName,
-	nach_nachname: helperHourPersonName,
-	nach_vorname: helperHourPersonName,
-	bemerkung: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500)), ""),
+export const HelperHourPersonSchema = v.object({
+	nachname: helperHourPersonName,
+	vorname: helperHourPersonName,
 });
-export type HelperHourNameAliasCreateInput = v.InferOutput<
-	typeof HelperHourNameAliasCreateSchema
+export type HelperHourPersonInput = v.InferOutput<
+	typeof HelperHourPersonSchema
 >;
 
-export const HelperHourNameAliasDeleteSchema = v.object({
+export const HelperHourPersonUpdateSchema = v.object({
+	id: v.pipe(v.string(), v.uuid()),
+	nachname: helperHourPersonName,
+	vorname: helperHourPersonName,
+	aktiv: v.boolean(),
+});
+
+export const HelperHourPersonMergeSchema = v.object({
+	von_id: v.pipe(v.string(), v.uuid()),
+	nach_id: v.pipe(v.string(), v.uuid()),
+});
+export type HelperHourPersonMergeInput = v.InferOutput<
+	typeof HelperHourPersonMergeSchema
+>;
+
+export const HelperHourEventSchema = v.object({
+	name: v.pipe(
+		v.string(),
+		v.trim(),
+		v.minLength(1, "Bitte eine Veranstaltung angeben"),
+		v.maxLength(160),
+	),
+});
+export type HelperHourEventInput = v.InferOutput<typeof HelperHourEventSchema>;
+
+export const HelperHourEventUpdateSchema = v.object({
+	id: v.pipe(v.string(), v.uuid()),
+	name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(160)),
+	aktiv: v.boolean(),
+});
+
+export const HelperHourEventMergeSchema = v.object({
+	von_id: v.pipe(v.string(), v.uuid()),
+	nach_id: v.pipe(v.string(), v.uuid()),
+});
+
+export const HelperHourAliasCreateSchema = v.object({
+	art: v.picklist(["person", "veranstaltung"]),
+	schreibweise: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(250)),
+	ziel_id: v.pipe(v.string(), v.uuid()),
+});
+export type HelperHourAliasCreateInput = v.InferOutput<
+	typeof HelperHourAliasCreateSchema
+>;
+
+export const HelperHourAliasDeleteSchema = v.object({
 	id: v.pipe(v.string(), v.uuid()),
 });
 
@@ -218,8 +260,8 @@ export const HelperHourNoteRuleDeleteSchema = v.object({
 
 export const HelperHourEntryCorrectSchema = v.object({
 	id: v.pipe(v.string(), v.uuid()),
-	nachname: v.optional(helperHourPersonName),
-	vorname: v.optional(helperHourPersonName),
+	person_id: v.optional(v.pipe(v.string(), v.uuid())),
+	veranstaltung_id: v.optional(v.pipe(v.string(), v.uuid())),
 	zuordnung: v.optional(
 		v.pipe(
 			v.array(
@@ -279,24 +321,8 @@ export const HelperHourCategoryDeleteSchema = v.object({
 export const HelperHourCreateSchema = v.object({
 	idempotency_key: v.pipe(v.string(), v.uuid()),
 	datum: isoCalendarDate,
-	veranstaltung: v.pipe(
-		v.string(),
-		v.trim(),
-		v.minLength(1, "Bitte eine Veranstaltung angeben"),
-		v.maxLength(160),
-	),
-	nachname: v.pipe(
-		v.string(),
-		v.trim(),
-		v.minLength(1, "Bitte den Nachnamen angeben"),
-		v.maxLength(120),
-	),
-	vorname: v.pipe(
-		v.string(),
-		v.trim(),
-		v.minLength(1, "Bitte den Vornamen angeben"),
-		v.maxLength(120),
-	),
+	veranstaltung_id: v.pipe(v.string(), v.uuid()),
+	person_id: v.pipe(v.string(), v.uuid()),
 	kategorie: helperHourCategoryCode,
 	minuten: v.pipe(
 		v.number(),

@@ -4,7 +4,12 @@ import ExcelJS from "exceljs";
 import { emptyCounts } from "@/lib/denominations";
 import type { HistoricalProtocolSource } from "@/lib/historical-protocol-import";
 import { db, pool } from "@/server/db";
-import { helperHourAllocations, helperHours } from "@/server/db/schema";
+import {
+	helperHourAllocations,
+	helperHourEvents,
+	helperHourPersons,
+	helperHours,
+} from "@/server/db/schema";
 import { listHelperHourCategories } from "@/server/services/helper-hour-categories";
 import { createHistoricalRevenueWithDb } from "@/server/services/historical-revenue";
 import {
@@ -123,9 +128,23 @@ async function main() {
 	// Categories are seeded by migration; the sandbox spreads hours over
 	// whatever the database actually holds.
 	const categories = await listHelperHourCategories();
+	// Personen und Veranstaltungen sind Katalogeintraege, keine Freitexte.
+	const personRows = await db
+		.insert(helperHourPersons)
+		.values(
+			helperNames.map(([vorname, nachname]) => ({ vorname, nachname })),
+		)
+		.onConflictDoNothing()
+		.returning();
+	const eventRows = await db
+		.insert(helperHourEvents)
+		.values(helperEvents.map((name) => ({ name })))
+		.onConflictDoNothing()
+		.returning();
 	const helperRows = Array.from({ length: 60 }, (_, index) => {
 		const category = categories[index % categories.length];
-		const [vorname, nachname] = helperNames[index % helperNames.length];
+		const person = personRows[index % personRows.length];
+		const event = eventRows[index % eventRows.length];
 		const minutes = 60 + (index % 8) * 15;
 		const imported = index % 4 === 0;
 		return {
@@ -133,9 +152,11 @@ async function main() {
 			row: {
 				idempotency_key: randomUUID(),
 				datum: `${2025 + (index % 2)}-${String((index % 12) + 1).padStart(2, "0")}-${String((index % 24) + 1).padStart(2, "0")}`,
-				veranstaltung: helperEvents[index % helperEvents.length],
-				vorname,
-				nachname,
+				veranstaltung_id: event.id,
+				veranstaltung: event.name,
+				person_id: person.id,
+				vorname: person.vorname,
+				nachname: person.nachname,
 				gemeldete_summe_minuten: minutes,
 				bemerkung: "Ausschließlich lokale, synthetische Beispieldaten",
 				quelle: imported ? "excel" : "manuell",

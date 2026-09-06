@@ -487,7 +487,7 @@ function canonicalNames(rows: RawRow[]) {
 	// Which given names a token is used as a surname for. Sets rather than
 	// counts, so one person entered many times is still a single witness.
 	const surnameOf = new Map<string, { names: Set<string>; rows: number }>();
-	for (const [unordered, { a, b }] of groups) {
+	for (const { a, b } of groups.values()) {
 		const forward = ordered.get(`${a}|${b}`) ?? 0;
 		const backward = ordered.get(`${b}|${a}`) ?? 0;
 		if (forward > 0 && backward > 0) continue;

@@ -6,11 +6,22 @@ import {
 	auditRequest,
 	recordAuditEvent,
 } from "@/server/services/audit";
+import {
+	catalogKey,
+	createHelperHourAlias,
+	createHelperHourEvent,
+	createHelperHourPerson,
+	loadHelperHourResolver,
+	personKey,
+} from "@/server/services/helper-hour-catalog";
 import { listHelperHourCategories } from "@/server/services/helper-hour-categories";
+import {
+	parseNameDecisions,
+	resolveImportNames,
+} from "@/server/services/helper-hour-resolve";
 import {
 	helperHourSheetStatus,
 	importHelperHours,
-	listHelperHourNameAliases,
 	listHelperHourNoteRules,
 } from "@/server/services/helper-hours";
 import {
@@ -71,19 +82,20 @@ export const Route = createFileRoute("/api/import/helper-hours")({
 					return Response.json({ error: "Ungültiger Modus." }, { status: 400 });
 				const bytes = new Uint8Array(await file.arrayBuffer());
 				const digest = createHash("sha256").update(bytes).digest("hex");
-				const [categories, aliases, noteRules] = await Promise.all([
+				const [categories, noteRules, resolver] = await Promise.all([
 					listHelperHourCategories(),
-					listHelperHourNameAliases(),
 					listHelperHourNoteRules(),
+					loadHelperHourResolver(),
 				]);
 				const parsed = await parseHelperHoursWorkbook(
 					bytes,
 					file.name,
 					categories,
 					digest,
-					aliases,
+					[],
 					noteRules,
 				);
+				const unresolved = resolveImportNames(parsed.rows, resolver);
 				// Every row of the file is imported: the monthly sheets are the
 				// register of record, so what Rendant already holds for those sheets
 				// is replaced rather than added to.
@@ -128,6 +140,8 @@ export const Route = createFileRoute("/api/import/helper-hours")({
 							})),
 						})),
 						repairs: parsed.repairs,
+						unresolvedPersons: unresolved.persons,
+						unresolvedEvents: unresolved.events,
 						repairSample: pending
 							.filter((row) => row.repairs.length > 0)
 							.slice(0, 40)
@@ -199,6 +213,76 @@ export const Route = createFileRoute("/api/import/helper-hours")({
 						{ error: "Die Datei enthält Fehler. Bitte erneut prüfen." },
 						{ status: 400 },
 					);
+				const decisions = parseNameDecisions(formData.get("names"));
+				if (!decisions)
+					return Response.json(
+						{ error: "Die Namenszuordnungen sind ungültig." },
+						{ status: 400 },
+					);
+				const actor = auditActor(session.user);
+				const auditCtx = { request: auditRequest(request) };
+				// Jede offene Schreibweise braucht eine Entscheidung, bevor irgendetwas
+				// geschrieben wird: entweder ein vorhandener Katalogeintrag oder ein
+				// bewusst neu angelegter.
+				const byKey = new Map(
+					decisions.map((entry) => [
+						`${entry.art}:${catalogKey(entry.schreibweise)}`,
+						entry,
+					]),
+				);
+				for (const offen of [...unresolved.persons, ...unresolved.events]) {
+					if (!byKey.has(`${offen.art}:${catalogKey(offen.schreibweise)}`))
+						return Response.json(
+							{
+								error: `"${offen.schreibweise}" ist noch nicht zugeordnet.`,
+							},
+							{ status: 409 },
+						);
+				}
+				for (const entscheidung of decisions) {
+					if (entscheidung.art === "person") {
+						const [nachname, vorname] = entscheidung.schreibweise
+							.split(",")
+							.map((part) => part.trim());
+						const ziel = entscheidung.neu
+							? await createHelperHourPerson(
+									{ nachname, vorname },
+									actor,
+									auditCtx,
+								)
+							: { id: entscheidung.ziel_id as string };
+						if (!entscheidung.neu)
+							await createHelperHourAlias(
+								{
+									art: "person",
+									schreibweise: entscheidung.schreibweise,
+									ziel_id: ziel.id,
+								},
+								actor,
+								auditCtx,
+							);
+					} else {
+						const ziel = entscheidung.neu
+							? await createHelperHourEvent(
+									{ name: entscheidung.schreibweise },
+									actor,
+									auditCtx,
+								)
+							: { id: entscheidung.ziel_id as string };
+						if (!entscheidung.neu)
+							await createHelperHourAlias(
+								{
+									art: "veranstaltung",
+									schreibweise: entscheidung.schreibweise,
+									ziel_id: ziel.id,
+								},
+								actor,
+								auditCtx,
+							);
+					}
+				}
+				// Nach den Entscheidungen neu laden, damit jede Zeile aufloest.
+				const fertig = await loadHelperHourResolver();
 				const corrections = parseHelperHoursImportCorrections(
 					formData.get("corrections"),
 				);
@@ -221,10 +305,34 @@ export const Route = createFileRoute("/api/import/helper-hours")({
 						},
 						{ status: 409 },
 					);
-				const actor = auditActor(session.user);
+				const katalog = {
+					personen: new Map(
+						fertig.persons.map((person) => [
+							personKey(person.nachname, person.vorname),
+							person,
+						]),
+					),
+					veranstaltungen: new Map(
+						fertig.events.map((event) => [catalogKey(event.name), event]),
+					),
+				};
+				for (const row of reviewed.rows) {
+					if (row.nachname && row.vorname) {
+						const treffer = fertig.person(row.nachname, row.vorname);
+						if (treffer)
+							katalog.personen.set(
+								personKey(row.nachname, row.vorname),
+								treffer,
+							);
+					}
+					const anlass = fertig.event(row.veranstaltung);
+					if (anlass)
+						katalog.veranstaltungen.set(catalogKey(row.veranstaltung), anlass);
+				}
 				const result = await importHelperHours(
 					reviewed.rows,
 					parsed.sheets,
+					katalog,
 					actor,
 					{
 						request: auditRequest(request),

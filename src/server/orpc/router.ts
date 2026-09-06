@@ -10,19 +10,25 @@ import {
 	CreateProtokollSchema,
 	EmailSettingsSchema,
 	ExportQuerySchema,
+	HelperHourAliasCreateSchema,
+	HelperHourAliasDeleteSchema,
 	HelperHourCategoryCreateSchema,
 	HelperHourCategoryDeleteSchema,
 	HelperHourCategoryUpdateSchema,
 	HelperHourCreateSchema,
 	HelperHourEntriesSchema,
 	HelperHourEntryCorrectSchema,
+	HelperHourEventMergeSchema,
+	HelperHourEventSchema,
+	HelperHourEventUpdateSchema,
 	HelperHourExpenseCancelSchema,
 	HelperHourExpenseCreateSchema,
 	HelperHourListSchema,
-	HelperHourNameAliasCreateSchema,
-	HelperHourNameAliasDeleteSchema,
 	HelperHourNoteRuleCreateSchema,
 	HelperHourNoteRuleDeleteSchema,
+	HelperHourPersonMergeSchema,
+	HelperHourPersonSchema,
+	HelperHourPersonUpdateSchema,
 	HelperHourValueSchema,
 	HistoricalProtocolDraftAnalyzeSchema,
 	HistoricalProtocolDraftBulkUpdateSchema,
@@ -84,6 +90,17 @@ import {
 	updateEmailSettings,
 } from "@/server/services/email";
 import {
+	createHelperHourAlias,
+	createHelperHourEvent,
+	createHelperHourPerson,
+	deleteHelperHourAlias,
+	listHelperHourCatalog,
+	mergeHelperHourEvents,
+	mergeHelperHourPersons,
+	updateHelperHourEvent,
+	updateHelperHourPerson,
+} from "@/server/services/helper-hour-catalog";
+import {
 	createHelperHourCategory,
 	deleteHelperHourCategory,
 	listHelperHourCategoriesWithUsage,
@@ -94,12 +111,9 @@ import {
 	correctHelperHourEntry,
 	createHelperHour,
 	createHelperHourExpense,
-	createHelperHourNameAlias,
 	createHelperHourNoteRule,
-	deleteHelperHourNameAlias,
 	deleteHelperHourNoteRule,
 	listHelperHourEntries,
-	listHelperHourNameAliases,
 	listHelperHourNameVariants,
 	listHelperHourNoteRules,
 	listHelperHours,
@@ -1382,19 +1396,61 @@ const helperHours = {
 				request: requestAuditContext(context),
 			}),
 		),
-	nameAliases: authed.handler(() => listHelperHourNameAliases()),
 	nameVariants: authed.handler(() => listHelperHourNameVariants()),
-	createNameAlias: adminOnly
-		.input(HelperHourNameAliasCreateSchema)
+	catalog: authed.handler(() => listHelperHourCatalog()),
+	createPerson: adminOnly
+		.input(HelperHourPersonSchema)
 		.handler(({ input, context }) =>
-			createHelperHourNameAlias(input, context.user, {
+			createHelperHourPerson(input, context.user, {
 				request: requestAuditContext(context),
 			}),
 		),
-	deleteNameAlias: adminOnly
-		.input(HelperHourNameAliasDeleteSchema)
+	updatePerson: adminOnly
+		.input(HelperHourPersonUpdateSchema)
 		.handler(({ input, context }) =>
-			deleteHelperHourNameAlias(input.id, context.user, {
+			updateHelperHourPerson(input, context.user, {
+				request: requestAuditContext(context),
+			}),
+		),
+	mergePersons: adminOnly
+		.input(HelperHourPersonMergeSchema)
+		.handler(({ input, context }) =>
+			mergeHelperHourPersons(input, context.user, {
+				request: requestAuditContext(context),
+			}),
+		),
+	createEvent: adminOnly
+		.input(HelperHourEventSchema)
+		.handler(({ input, context }) =>
+			createHelperHourEvent(input, context.user, {
+				request: requestAuditContext(context),
+			}),
+		),
+	updateEvent: adminOnly
+		.input(HelperHourEventUpdateSchema)
+		.handler(({ input, context }) =>
+			updateHelperHourEvent(input, context.user, {
+				request: requestAuditContext(context),
+			}),
+		),
+	mergeEvents: adminOnly
+		.input(HelperHourEventMergeSchema)
+		.handler(({ input, context }) =>
+			mergeHelperHourEvents(input, context.user, {
+				request: requestAuditContext(context),
+			}),
+		),
+	createAlias: adminOnly
+		.input(HelperHourAliasCreateSchema)
+		.handler(({ input, context }) =>
+			createHelperHourAlias(input, context.user, {
+				request: requestAuditContext(context),
+			}),
+		),
+	deleteAlias: adminOnly
+		.input(HelperHourAliasDeleteSchema)
+		.handler(({ input, context }) =>
+			deleteHelperHourAlias(input.id, context.user, {
 				request: requestAuditContext(context),
 			}),
 		),

@@ -41,8 +41,11 @@ describe("toolsForMode", () => {
 		const readonly = names("readonly");
 		const admin = names("admin");
 		for (const tool of [
-			"merge_helper_name",
-			"delete_helper_name_alias",
+			"merge_helpers",
+			"merge_helper_hour_events",
+			"create_helper",
+			"create_helper_hour_alias",
+			"delete_helper_hour_alias",
 			"correct_helper_hour_entry",
 			"create_helper_hour_category",
 			"update_helper_hour_category",
@@ -57,7 +60,7 @@ describe("toolsForMode", () => {
 			"list_helper_hours",
 			"list_helper_hour_categories",
 			"list_helper_name_variants",
-			"list_helper_name_aliases",
+			"list_helper_hour_catalog",
 			"list_helper_hour_note_rules",
 		]) {
 			expect(readonly.has(tool)).toBe(true);
