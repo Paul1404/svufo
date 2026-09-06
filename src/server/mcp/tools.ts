@@ -9,15 +9,21 @@ import {
 	CashRegisterSchema,
 	CreateProtokollSchema,
 	ExportQuerySchema,
+	HelperHourAliasCreateSchema,
+	HelperHourAliasDeleteSchema,
 	HelperHourCategoryCreateSchema,
 	HelperHourCategoryUpdateSchema,
 	HelperHourEntriesSchema,
 	HelperHourEntryCorrectSchema,
+	HelperHourEventMergeSchema,
+	HelperHourEventSchema,
+	HelperHourEventUpdateSchema,
 	HelperHourListSchema,
-	HelperHourNameAliasCreateSchema,
-	HelperHourNameAliasDeleteSchema,
 	HelperHourNoteRuleCreateSchema,
 	HelperHourNoteRuleDeleteSchema,
+	HelperHourPersonMergeSchema,
+	HelperHourPersonSchema,
+	HelperHourPersonUpdateSchema,
 	HistoricalProtocolDraftAnalyzeSchema,
 	HistoricalProtocolDraftBulkUpdateSchema,
 	HistoricalProtocolDraftGetSchema,
@@ -686,34 +692,93 @@ const TOOLS: McpTool[] = [
 			call(router.helperHours.nameVariants, undefined, { context }),
 	}),
 	defineTool({
-		name: "list_helper_name_aliases",
+		name: "list_helper_hour_catalog",
 		description:
-			"List the stored name variants, each mapping a spelling the list uses to the spelling the club decided on.",
+			"The helper and event catalogues with how often each entry is used and which spreadsheet spellings map onto it. Names and events are selected from these, never typed, so this is the source of truth for who and what exists.",
 		minMode: "readonly",
 		input: EmptyInput,
 		annotations: READ_ONLY,
 		execute: (context) =>
-			call(router.helperHours.nameAliases, undefined, { context }),
+			call(router.helperHours.catalog, undefined, { context }),
 	}),
 	defineTool({
-		name: "merge_helper_name",
+		name: "create_helper",
 		description:
-			"Record that one spelling means another and rewrite the hours already stored under it. The mapping is kept and reapplied on every future import, so a re-import of the same list does not undo it. Two similar names can be two different people, so requires explicit user authorization for the specific pair.",
+			"Add a person to the helper catalogue. Check list_helper_hour_catalog first: a near-identical entry usually means a spelling variant that should be merged instead of a second person.",
 		minMode: "admin",
-		input: HelperHourNameAliasCreateSchema,
+		input: HelperHourPersonSchema,
 		annotations: WRITE,
 		execute: (context, input) =>
-			call(router.helperHours.createNameAlias, input, { context }),
+			call(router.helperHours.createPerson, input, { context }),
 	}),
 	defineTool({
-		name: "delete_helper_name_alias",
+		name: "update_helper",
 		description:
-			"Remove a stored name variant. Hours already rewritten keep the target spelling; only future imports stop applying it. Requires explicit user authorization.",
+			"Rename a helper or deactivate them. Renaming also rewrites the name shown on their stored hours.",
 		minMode: "admin",
-		input: HelperHourNameAliasDeleteSchema,
+		input: HelperHourPersonUpdateSchema,
+		annotations: WRITE,
+		execute: (context, input) =>
+			call(router.helperHours.updatePerson, input, { context }),
+	}),
+	defineTool({
+		name: "merge_helpers",
+		description:
+			"Fold one helper into another: the hours move and the losing spelling is remembered so a future import resolves to the survivor. Two similar names can be two real people, so requires explicit user authorization for the specific pair.",
+		minMode: "admin",
+		input: HelperHourPersonMergeSchema,
 		annotations: DESTRUCTIVE,
 		execute: (context, input) =>
-			call(router.helperHours.deleteNameAlias, input, { context }),
+			call(router.helperHours.mergePersons, input, { context }),
+	}),
+	defineTool({
+		name: "create_helper_hour_event",
+		description: "Add an occasion to the helper-hour event catalogue.",
+		minMode: "admin",
+		input: HelperHourEventSchema,
+		annotations: WRITE,
+		execute: (context, input) =>
+			call(router.helperHours.createEvent, input, { context }),
+	}),
+	defineTool({
+		name: "update_helper_hour_event",
+		description:
+			"Rename an occasion or deactivate it. Renaming also rewrites the name shown on its stored hours.",
+		minMode: "admin",
+		input: HelperHourEventUpdateSchema,
+		annotations: WRITE,
+		execute: (context, input) =>
+			call(router.helperHours.updateEvent, input, { context }),
+	}),
+	defineTool({
+		name: "merge_helper_hour_events",
+		description:
+			"Fold one occasion into another, e.g. the five spellings of Biergarten. Requires explicit user authorization.",
+		minMode: "admin",
+		input: HelperHourEventMergeSchema,
+		annotations: DESTRUCTIVE,
+		execute: (context, input) =>
+			call(router.helperHours.mergeEvents, input, { context }),
+	}),
+	defineTool({
+		name: "create_helper_hour_alias",
+		description:
+			"Remember that one spreadsheet spelling means a given catalogue entry, so the import stops asking about it. Requires explicit user authorization.",
+		minMode: "admin",
+		input: HelperHourAliasCreateSchema,
+		annotations: WRITE,
+		execute: (context, input) =>
+			call(router.helperHours.createAlias, input, { context }),
+	}),
+	defineTool({
+		name: "delete_helper_hour_alias",
+		description:
+			"Forget a remembered spelling. The next import will ask about it again. Requires explicit user authorization.",
+		minMode: "admin",
+		input: HelperHourAliasDeleteSchema,
+		annotations: DESTRUCTIVE,
+		execute: (context, input) =>
+			call(router.helperHours.deleteAlias, input, { context }),
 	}),
 	defineTool({
 		name: "correct_helper_hour_entry",

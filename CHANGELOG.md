@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an diesem Projekt. Neueste zuerst. Die Version
 hier entspricht `package.json` und der Versionsmarke in der App.
 
+## 1.47.0 - 2026-09-06
+
+- Helfer und Veranstaltungen werden jetzt ausgewählt statt getippt. Beim
+  Erfassen suchst du im Katalog und legst einen neuen Eintrag bewusst an. Damit
+  entstehen keine vertauschten, verkürzten oder vertippten Namen mehr.
+- Beim Import fragt Rendant einmal je unbekannter Schreibweise, ob sie zu einem
+  vorhandenen Eintrag gehört oder neu ist, und merkt sich die Antwort für jeden
+  weiteren Import. Ungeklärte Schreibweisen halten den Import an, statt still
+  eine zweite Person anzulegen.
+- Unter Einstellungen, Helferstunden lassen sich doppelte Helfer zusammenführen.
+  Die Stunden wandern mit, und die aufgegebene Schreibweise wird gemerkt.
+- Bestehende Daten wurden automatisch in die Kataloge übernommen.
+- Auch über die MCP-Schnittstelle: Katalog lesen, Helfer und Veranstaltungen
+  anlegen, umbenennen, zusammenführen und Schreibweisen zuordnen.
+
 ## 1.46.1 - 2026-09-06
 
 - Die Seiten der PDF-Protokolle sind jetzt rein weiß statt cremefarben.

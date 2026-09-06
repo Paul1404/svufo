@@ -428,15 +428,81 @@ export const helperHourCategories = pgTable(
  * club has already judged never has to be corrected again: a rename would
  * otherwise be undone by the next import, which replaces the monthly sheets.
  */
-export const helperHourNameAliases = pgTable(
-	"helper_hour_name_aliases",
+/**
+ * Every helper is a catalogue entry. Free-text names were the single largest
+ * source of bad data: 186 spellings for about 170 people, swapped name parts,
+ * short forms and typos. Selecting instead of typing removes all of that at the
+ * point of entry rather than repairing it afterwards.
+ */
+export const helperHourPersons = pgTable(
+	"helper_hour_persons",
 	{
 		id: uuid("id").primaryKey().defaultRandom(),
-		von_nachname: text("von_nachname").notNull(),
-		von_vorname: text("von_vorname").notNull(),
-		nach_nachname: text("nach_nachname").notNull(),
-		nach_vorname: text("nach_vorname").notNull(),
-		bemerkung: text("bemerkung").notNull().default(""),
+		nachname: text("nachname").notNull(),
+		vorname: text("vorname").notNull(),
+		aktiv: boolean("aktiv").notNull().default(true),
+		erstellt_von_user_id: text("erstellt_von_user_id"),
+		erstellt_von_name: text("erstellt_von_name"),
+		erstellt_am: timestamp("erstellt_am", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [
+		uniqueIndex("helper_hour_persons_name_unique").on(
+			sql`lower(trim(${t.nachname}))`,
+			sql`lower(trim(${t.vorname}))`,
+		),
+		index("idx_helper_hour_persons_sort").on(t.nachname, t.vorname),
+		check(
+			"helper_hour_persons_name_check",
+			sql`length(trim(${t.nachname})) BETWEEN 1 AND 120 AND length(trim(${t.vorname})) BETWEEN 1 AND 120`,
+		),
+	],
+);
+
+/** The occasions helpers work at, for the same reason as the person catalogue. */
+export const helperHourEvents = pgTable(
+	"helper_hour_events",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		name: text("name").notNull(),
+		aktiv: boolean("aktiv").notNull().default(true),
+		erstellt_von_user_id: text("erstellt_von_user_id"),
+		erstellt_von_name: text("erstellt_von_name"),
+		erstellt_am: timestamp("erstellt_am", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [
+		uniqueIndex("helper_hour_events_name_unique").on(
+			sql`lower(trim(${t.name}))`,
+		),
+		check(
+			"helper_hour_events_name_check",
+			sql`length(trim(${t.name})) BETWEEN 1 AND 160`,
+		),
+	],
+);
+
+/**
+ * How a spelling in the spreadsheet maps onto a catalogue entry. The list stays
+ * free text as long as it is maintained outside Rendant, so the import needs a
+ * remembered answer for "Moni" or "BiergartenSonntag" instead of asking again
+ * every month.
+ */
+export const helperHourAliases = pgTable(
+	"helper_hour_aliases",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		art: text("art").notNull(),
+		schreibweise: text("schreibweise").notNull(),
+		person_id: uuid("person_id").references(() => helperHourPersons.id, {
+			onDelete: "cascade",
+		}),
+		veranstaltung_id: uuid("veranstaltung_id").references(
+			() => helperHourEvents.id,
+			{ onDelete: "cascade" },
+		),
 		erstellt_von_user_id: text("erstellt_von_user_id").notNull(),
 		erstellt_von_name: text("erstellt_von_name").notNull(),
 		erstellt_am: timestamp("erstellt_am", { withTimezone: true })
@@ -444,23 +510,22 @@ export const helperHourNameAliases = pgTable(
 			.defaultNow(),
 	},
 	(t) => [
-		uniqueIndex("helper_hour_name_aliases_source_unique").on(
-			sql`lower(trim(${t.von_nachname}))`,
-			sql`lower(trim(${t.von_vorname}))`,
+		uniqueIndex("helper_hour_aliases_unique").on(
+			t.art,
+			sql`lower(trim(${t.schreibweise}))`,
 		),
 		check(
-			"helper_hour_name_aliases_source_check",
-			sql`length(trim(${t.von_nachname} || ${t.von_vorname})) > 0`,
+			"helper_hour_aliases_art_check",
+			sql`${t.art} IN ('person', 'veranstaltung')`,
 		),
 		check(
-			"helper_hour_name_aliases_target_check",
-			sql`length(trim(${t.nach_nachname})) > 0 AND length(trim(${t.nach_vorname})) > 0`,
+			"helper_hour_aliases_spelling_check",
+			sql`length(trim(${t.schreibweise})) BETWEEN 1 AND 250`,
 		),
-		// A target that is itself a source would chain, and the order in which
-		// aliases apply would start to matter.
+		// Exactly one target, so an alias can never point two ways at once.
 		check(
-			"helper_hour_name_aliases_distinct_check",
-			sql`lower(trim(${t.von_nachname})) <> lower(trim(${t.nach_nachname})) OR lower(trim(${t.von_vorname})) <> lower(trim(${t.nach_vorname}))`,
+			"helper_hour_aliases_target_check",
+			sql`(${t.art} = 'person' AND ${t.person_id} IS NOT NULL AND ${t.veranstaltung_id} IS NULL) OR (${t.art} = 'veranstaltung' AND ${t.veranstaltung_id} IS NOT NULL AND ${t.person_id} IS NULL)`,
 		),
 	],
 );
@@ -503,9 +568,17 @@ export const helperHours = pgTable(
 		id: uuid("id").primaryKey().defaultRandom(),
 		idempotency_key: uuid("idempotency_key").notNull().unique(),
 		datum: date("datum", { mode: "string" }).notNull(),
+		// Abbildung des Katalogeintrags, damit Suche, Sortierung und Export ohne
+		// Join auskommen. Geschrieben wird sie ausschliesslich aus dem Katalog.
 		veranstaltung: text("veranstaltung").notNull(),
 		nachname: text("nachname").notNull().default(""),
 		vorname: text("vorname").notNull().default(""),
+		person_id: uuid("person_id").references(() => helperHourPersons.id, {
+			onDelete: "restrict",
+		}),
+		veranstaltung_id: uuid("veranstaltung_id")
+			.notNull()
+			.references(() => helperHourEvents.id, { onDelete: "restrict" }),
 		gemeldete_summe_minuten: integer("gemeldete_summe_minuten").notNull(),
 		bemerkung: text("bemerkung").notNull().default(""),
 		quelle: text("quelle").notNull().default("manuell"),
@@ -545,14 +618,12 @@ export const helperHours = pgTable(
 		),
 		index("idx_helper_hours_datum").on(t.datum),
 		index("idx_helper_hours_name").on(t.nachname, t.vorname),
+		index("idx_helper_hours_person").on(t.person_id),
+		index("idx_helper_hours_event").on(t.veranstaltung_id),
 		index("idx_helper_hours_sheet").on(t.quelle, t.quelle_blatt),
 		check(
 			"helper_hours_event_check",
 			sql`length(trim(${t.veranstaltung})) BETWEEN 1 AND 160`,
-		),
-		check(
-			"helper_hours_name_check",
-			sql`length(trim(${t.nachname} || ${t.vorname})) > 0 OR ${t.quelle} = 'excel'`,
 		),
 		check(
 			"helper_hours_source_check",

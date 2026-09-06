@@ -36,41 +36,29 @@ type Category = {
 	expenses: number;
 };
 
-type NameVariant = {
-	left: string;
-	right: string;
-	leftEntries: number;
-	rightEntries: number;
-	leftMinutes: number;
-	rightMinutes: number;
-};
-type NameAlias = {
-	id: string;
-	von_nachname: string;
-	von_vorname: string;
-	nach_nachname: string;
-	nach_vorname: string;
-};
-
 /**
  * Two spellings of one person split their hours across two helpers. Merging is
  * never automatic: the same similarity finds real siblings too, so each pair is
  * confirmed here and then remembered for every future import.
  */
+/**
+ * Clean-up for what the old free-text data left behind: catalogue entries that
+ * look like the same person. Merging moves the hours and remembers the losing
+ * spelling, so a future import resolves to the survivor.
+ */
 export function HelperHourNameVariantsForm() {
-	const { data: variants, refetch: refetchVariants } = useQuery(
+	const queryClient = useQueryClient();
+	const { data: variants, refetch } = useQuery(
 		orpc.helperHours.nameVariants.queryOptions({}),
 	);
-	const { data: aliases, refetch: refetchAliases } = useQuery(
-		orpc.helperHours.nameAliases.queryOptions({}),
-	);
-	const queryClient = useQueryClient();
 	const [pending, setPending] = useState<string | null>(null);
 
 	async function refresh() {
 		await Promise.all([
-			refetchVariants(),
-			refetchAliases(),
+			refetch(),
+			queryClient.invalidateQueries({
+				queryKey: orpc.helperHours.catalog.key({ type: "query" }),
+			}),
 			queryClient.invalidateQueries({
 				queryKey: orpc.helperHours.list.key({ type: "query" }),
 			}),
@@ -80,20 +68,15 @@ export function HelperHourNameVariantsForm() {
 		]);
 	}
 
-	async function merge(from: string, to: string) {
-		const [vonNachname, vonVorname] = from.split(", ");
-		const [nachNachname, nachVorname] = to.split(", ");
-		setPending(from);
+	async function merge(vonId: string, nachId: string, label: string) {
+		setPending(vonId);
 		try {
-			const saved = await orpcClient.helperHours.createNameAlias({
-				von_nachname: vonNachname ?? "",
-				von_vorname: vonVorname ?? "",
-				nach_nachname: nachNachname ?? "",
-				nach_vorname: nachVorname ?? "",
-				bemerkung: "",
+			const saved = await orpcClient.helperHours.mergePersons({
+				von_id: vonId,
+				nach_id: nachId,
 			});
 			await refresh();
-			toast.success(`${saved.updated} Einträge auf "${to}" vereinheitlicht`);
+			toast.success(`${saved.moved} Einträge auf "${label}" vereinheitlicht`);
 		} catch (error) {
 			toast.error(orpcMessage(error, "Zusammenführen fehlgeschlagen"));
 		} finally {
@@ -101,72 +84,64 @@ export function HelperHourNameVariantsForm() {
 		}
 	}
 
-	async function remove(id: string) {
-		setPending(id);
-		try {
-			await orpcClient.helperHours.deleteNameAlias({ id });
-			await refresh();
-			toast.success("Namensvariante entfernt");
-		} catch (error) {
-			toast.error(orpcMessage(error, "Entfernen fehlgeschlagen"));
-		} finally {
-			setPending(null);
-		}
-	}
-
-	const offen = (variants ?? []) as NameVariant[];
-	const bekannt = (aliases ?? []) as NameAlias[];
+	const offen = (variants ?? []) as Array<{
+		left: string;
+		right: string;
+		leftId: string | null;
+		rightId: string | null;
+		leftEntries: number;
+		rightEntries: number;
+		leftMinutes: number;
+		rightMinutes: number;
+	}>;
 
 	return (
 		<Card>
 			<CardHeader>
-				<p className="font-medium">Namensvarianten</p>
+				<p className="font-medium">Doppelte Helfer zusammenführen</p>
 				<p className="text-xs text-muted-foreground">
-					Schreibweisen, die dieselbe Person sein könnten. Führst du sie
-					zusammen, werden die vorhandenen Stunden umgeschrieben und jeder
-					künftige Import wendet die Entscheidung an. Zwei ähnliche Namen können
-					auch zwei echte Personen sein, deshalb passiert nichts von selbst.
+					Katalogeinträge, die dieselbe Person sein könnten. Beim Zusammenführen
+					wandern die Stunden mit, und die aufgegebene Schreibweise wird
+					gemerkt, damit ein künftiger Import sie richtig zuordnet. Zwei
+					ähnliche Namen können auch zwei echte Personen sein, deshalb passiert
+					nichts von selbst.
 				</p>
 			</CardHeader>
 			<CardContent className="space-y-2">
 				{offen.length === 0 ? (
 					<p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-						Keine offenen Namensvarianten.
+						Keine doppelten Helfer gefunden.
 					</p>
 				) : null}
 				{offen.map((variant) => {
-					// The spelling with more entries is offered as the target.
-					const [ziel, quelle] =
-						variant.leftEntries >= variant.rightEntries
-							? [variant.left, variant.right]
-							: [variant.right, variant.left];
-					const zielStunden =
-						variant.leftEntries >= variant.rightEntries
-							? variant.leftMinutes
-							: variant.rightMinutes;
-					const quelleStunden =
-						variant.leftEntries >= variant.rightEntries
-							? variant.rightMinutes
-							: variant.leftMinutes;
+					const linksGewinnt = variant.leftEntries >= variant.rightEntries;
+					const ziel = linksGewinnt ? variant.left : variant.right;
+					const zielId = linksGewinnt ? variant.leftId : variant.rightId;
+					const quelle = linksGewinnt ? variant.right : variant.left;
+					const quelleId = linksGewinnt ? variant.rightId : variant.leftId;
+					if (!zielId || !quelleId) return null;
 					return (
 						<div
 							key={`${variant.left}|${variant.right}`}
 							className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"
 						>
-							<div className="min-w-0 text-sm">
-								<p>
-									<span className="font-medium">{quelle}</span> (
-									{formatMinutes(quelleStunden)} h) zu{" "}
-									<span className="font-medium">{ziel}</span> (
-									{formatMinutes(zielStunden)} h)
-								</p>
-							</div>
+							<p className="min-w-0 text-sm">
+								<span className="font-medium">{quelle}</span> (
+								{formatMinutes(
+									linksGewinnt ? variant.rightMinutes : variant.leftMinutes,
+								)}{" "}
+								h) zu <span className="font-medium">{ziel}</span> (
+								{formatMinutes(
+									linksGewinnt ? variant.leftMinutes : variant.rightMinutes,
+								)}{" "}
+								h)
+							</p>
 							<div className="flex gap-2">
 								<Button
 									type="button"
 									size="sm"
 									disabled={pending !== null}
-									onClick={() => void merge(quelle, ziel)}
+									onClick={() => void merge(quelleId, zielId, ziel)}
 								>
 									Zusammenführen
 								</Button>
@@ -175,7 +150,7 @@ export function HelperHourNameVariantsForm() {
 									size="sm"
 									variant="outline"
 									disabled={pending !== null}
-									onClick={() => void merge(ziel, quelle)}
+									onClick={() => void merge(zielId, quelleId, quelle)}
 								>
 									Umgekehrt
 								</Button>
@@ -183,35 +158,6 @@ export function HelperHourNameVariantsForm() {
 						</div>
 					);
 				})}
-				{bekannt.length ? (
-					<div className="space-y-2 border-t pt-3">
-						<p className="text-xs font-medium text-muted-foreground">
-							Hinterlegte Varianten
-						</p>
-						{bekannt.map((alias) => (
-							<div
-								key={alias.id}
-								className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm"
-							>
-								<span>
-									{alias.von_nachname}, {alias.von_vorname} zu{" "}
-									<span className="font-medium">
-										{alias.nach_nachname}, {alias.nach_vorname}
-									</span>
-								</span>
-								<Button
-									type="button"
-									variant="ghost"
-									size="sm"
-									disabled={pending !== null}
-									onClick={() => void remove(alias.id)}
-								>
-									<Trash2 className="h-3.5 w-3.5" />
-								</Button>
-							</div>
-						))}
-					</div>
-				) : null}
 			</CardContent>
 		</Card>
 	);

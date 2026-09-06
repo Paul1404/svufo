@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { CatalogPicker } from "@/components/catalog-picker";
 import { Button } from "@/components/ui/button";
 import { CancelReasonDialog } from "@/components/ui/cancel-reason-dialog";
 import {
@@ -80,6 +81,21 @@ import {
 } from "@/lib/helper-hours";
 import { parseGermanAmount } from "@/lib/money";
 import { orpc, orpcClient } from "@/lib/orpc";
+import { orpcMessage } from "@/lib/orpc-error";
+
+type UnresolvedName = {
+	art: "person" | "veranstaltung";
+	schreibweise: string;
+	rows: number;
+	minutes: number;
+	vorschlaege: Array<{ id: string; label: string }>;
+};
+type NameDecision = {
+	art: "person" | "veranstaltung";
+	schreibweise: string;
+	ziel_id?: string;
+	neu?: boolean;
+};
 
 type ImportCategory = {
 	code: string;
@@ -104,6 +120,8 @@ type Preview = {
 		leftMinutes: number;
 		rightMinutes: number;
 	}>;
+	unresolvedPersons: UnresolvedName[];
+	unresolvedEvents: UnresolvedName[];
 	noteCandidates: Array<{
 		vermerk: string;
 		rows: number;
@@ -235,13 +253,25 @@ export function HelperHoursPage({
 	const key = useRef<string | null>(null);
 	const [form, setForm] = useState({
 		datum: todayIsoDate(),
-		veranstaltung: "",
-		vorname: "",
-		nachname: "",
+		veranstaltung_id: "",
+		person_id: "",
 		stunden: "",
 		kategorie: "gesamtverein",
 		bemerkung: "",
 	});
+	const { data: catalog, refetch: refetchCatalog } = useQuery(
+		orpc.helperHours.catalog.queryOptions({}),
+	);
+	const personOptions = (catalog?.persons ?? []).map((person) => ({
+		id: person.id,
+		label: `${person.nachname}, ${person.vorname}`,
+		aktiv: person.aktiv,
+	}));
+	const eventOptions = (catalog?.events ?? []).map((event) => ({
+		id: event.id,
+		label: event.name,
+		aktiv: event.aktiv,
+	}));
 	const categories = useHelperHourCategories();
 	const options = selectableCategories(categories);
 	// The list is configurable, so the form falls back to whatever exists rather
@@ -275,27 +305,24 @@ export function HelperHoursPage({
 			toast.error("Bitte Stunden in Viertelstunden angeben, zum Beispiel 2,5");
 			return;
 		}
+		if (!form.person_id || !form.veranstaltung_id) {
+			toast.error("Bitte Helfer und Veranstaltung auswählen");
+			return;
+		}
 		setSaving(true);
 		try {
 			key.current ??= crypto.randomUUID();
 			await orpcClient.helperHours.create({
 				idempotency_key: key.current,
 				datum: form.datum,
-				veranstaltung: form.veranstaltung,
-				nachname: form.nachname,
-				vorname: form.vorname,
+				veranstaltung_id: form.veranstaltung_id,
+				person_id: form.person_id,
 				kategorie: selectedCategory,
 				minuten,
 				bemerkung: form.bemerkung,
 			});
 			key.current = null;
-			setForm({
-				...form,
-				vorname: "",
-				nachname: "",
-				stunden: "",
-				bemerkung: "",
-			});
+			setForm({ ...form, person_id: "", stunden: "", bemerkung: "" });
 			await refreshHours();
 			toast.success("Helferstunde gespeichert");
 		} catch (error) {
@@ -374,35 +401,69 @@ export function HelperHoursPage({
 								required
 							/>
 						</div>
-						<div className="space-y-1.5 sm:col-span-2 lg:col-span-5">
-							<Label htmlFor="hh-event">Veranstaltung</Label>
-							<Input
+						<div className="sm:col-span-2 lg:col-span-5">
+							<CatalogPicker
 								id="hh-event"
-								value={form.veranstaltung}
-								onChange={(e) =>
-									setForm({ ...form, veranstaltung: e.target.value })
-								}
-								placeholder="z. B. Sommerfest"
-								maxLength={160}
-								required
+								label="Veranstaltung"
+								placeholder="Veranstaltung suchen"
+								createLabel="Veranstaltung anlegen"
+								emptyHint="Keine Veranstaltung gefunden"
+								options={eventOptions}
+								value={form.veranstaltung_id || null}
+								onChange={(id) => setForm({ ...form, veranstaltung_id: id })}
+								onCreate={async (name) => {
+									try {
+										const angelegt = await orpcClient.helperHours.createEvent({
+											name,
+										});
+										await refetchCatalog();
+										toast.success("Veranstaltung angelegt");
+										return angelegt.id;
+									} catch (error) {
+										toast.error(orpcMessage(error, "Anlegen fehlgeschlagen"));
+										return null;
+									}
+								}}
 							/>
 						</div>
-						<div className="space-y-1.5 lg:col-span-2">
-							<Label htmlFor="hh-first">Vorname</Label>
-							<Input
-								id="hh-first"
-								value={form.vorname}
-								onChange={(e) => setForm({ ...form, vorname: e.target.value })}
-								required
-							/>
-						</div>
-						<div className="space-y-1.5 lg:col-span-2">
-							<Label htmlFor="hh-last">Nachname</Label>
-							<Input
-								id="hh-last"
-								value={form.nachname}
-								onChange={(e) => setForm({ ...form, nachname: e.target.value })}
-								required
+						<div className="sm:col-span-2 lg:col-span-4">
+							<CatalogPicker
+								id="hh-person"
+								label="Helfer"
+								placeholder="Namen suchen"
+								createLabel="Helfer anlegen"
+								emptyHint="Kein Helfer gefunden"
+								options={personOptions}
+								value={form.person_id || null}
+								onChange={(id) => setForm({ ...form, person_id: id })}
+								onCreate={async (eingabe) => {
+									// "Nachname, Vorname" oder "Vorname Nachname"
+									const [a, b] = eingabe.includes(",")
+										? eingabe.split(",").map((part) => part.trim())
+										: (() => {
+												const teile = eingabe.trim().split(/\s+/);
+												const vorname = teile.shift() ?? "";
+												return [teile.join(" "), vorname];
+											})();
+									if (!a || !b) {
+										toast.error(
+											'Bitte Nachname und Vorname angeben, etwa "Schmitt, Wolfgang"',
+										);
+										return null;
+									}
+									try {
+										const angelegt = await orpcClient.helperHours.createPerson({
+											nachname: a,
+											vorname: b,
+										});
+										await refetchCatalog();
+										toast.success("Helfer angelegt");
+										return angelegt.id;
+									} catch (error) {
+										toast.error(orpcMessage(error, "Anlegen fehlgeschlagen"));
+										return null;
+									}
+								}}
 							/>
 						</div>
 						<div className="space-y-1.5 lg:col-span-3">
@@ -1863,6 +1924,8 @@ function HelperHoursImport({
 		Record<string, HelperHoursCorrection>
 	>({});
 	const [editing, setEditing] = useState<HelperHoursReviewRow | null>(null);
+	// Je Schreibweise eine Entscheidung, nicht je Zeile.
+	const [names, setNames] = useState<Record<string, NameDecision>>({});
 	const [loading, setLoading] = useState<"preview" | "apply" | null>(null);
 	const reviewKey = (row: Pick<HelperHoursReviewRow, "sheet" | "rowNumber">) =>
 		`${row.sheet}:${row.rowNumber}`;
@@ -1880,6 +1943,11 @@ function HelperHoursImport({
 	const totalIssues =
 		preview?.reviewRows.reduce((sum, row) => sum + row.issues.length, 0) ?? 0;
 	const openIssues = totalIssues - resolvedIssues;
+	const offeneNamen = preview
+		? [...preview.unresolvedPersons, ...preview.unresolvedEvents].filter(
+				(entry) => !names[`${entry.art}:${entry.schreibweise}`],
+			).length
+		: 0;
 	async function send(mode: "preview" | "apply") {
 		if (!file) return;
 		setLoading(mode);
@@ -1889,8 +1957,10 @@ function HelperHoursImport({
 			body.set("mode", mode);
 			if (mode === "apply" && preview)
 				body.set("confirm_digest", preview.digest);
-			if (mode === "apply")
+			if (mode === "apply") {
 				body.set("corrections", JSON.stringify(Object.values(corrections)));
+				body.set("names", JSON.stringify(Object.values(names)));
+			}
 			const response = await fetch("/api/import/helper-hours", {
 				method: "POST",
 				body,
@@ -1903,6 +1973,7 @@ function HelperHoursImport({
 				throw new Error(result.error ?? "Import fehlgeschlagen");
 			if (mode === "preview") {
 				setPreview(result);
+				setNames({});
 				setCorrections(
 					Object.fromEntries(
 						result.reviewRows.map((row) => [
@@ -1929,6 +2000,7 @@ function HelperHoursImport({
 				setFile(null);
 				setPreview(null);
 				setCorrections({});
+				setNames({});
 				if (input.current) input.current.value = "";
 				await onImported();
 			}
@@ -1949,6 +2021,7 @@ function HelperHoursImport({
 			: "";
 	function confirmImport() {
 		if (!preview?.valid || preview.toImport <= 0 || openIssues > 0) return;
+		if (offeneNamen > 0) return;
 		setImportOpen(true);
 	}
 	return (
@@ -2033,6 +2106,111 @@ function HelperHoursImport({
 									))}
 								</ul>
 							</details>
+						) : null}
+						{preview.unresolvedPersons.length ||
+						preview.unresolvedEvents.length ? (
+							<div className="mt-4 space-y-3 rounded-xl border border-warning/35 bg-warning/10 p-3">
+								<div>
+									<p className="flex items-center gap-2 text-sm font-semibold text-warning">
+										<AlertTriangle className="h-4 w-4" />
+										{preview.unresolvedPersons.length +
+											preview.unresolvedEvents.length}{" "}
+										Schreibweisen sind noch nicht zugeordnet
+									</p>
+									<p className="mt-0.5 text-xs text-foreground/80">
+										Helfer und Veranstaltungen kommen aus dem Katalog. Ordne
+										jede Schreibweise einmal zu, dann merkt Rendant sie sich für
+										jeden weiteren Import.
+									</p>
+								</div>
+								{[
+									...preview.unresolvedPersons,
+									...preview.unresolvedEvents,
+								].map((offen) => {
+									const key = `${offen.art}:${offen.schreibweise}`;
+									const gewaehlt = names[key];
+									return (
+										<div
+											key={key}
+											className="rounded-lg border bg-background/80 p-3"
+										>
+											<p className="text-sm font-medium">
+												{offen.schreibweise}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{offen.art === "person" ? "Helfer" : "Veranstaltung"}
+												{", "}
+												{offen.rows} Zeilen, {formatMinutes(offen.minutes)} h
+											</p>
+											{gewaehlt ? (
+												<p className="mt-2 flex items-center gap-2 text-xs text-success">
+													<CheckCircle2 className="h-3.5 w-3.5" />
+													{gewaehlt.neu
+														? "Wird neu angelegt"
+														: `Zugeordnet zu ${
+																offen.vorschlaege.find(
+																	(v) => v.id === gewaehlt.ziel_id,
+																)?.label ?? "Katalogeintrag"
+															}`}
+													<button
+														type="button"
+														className="underline"
+														onClick={() =>
+															setNames((current) => {
+																const next = { ...current };
+																delete next[key];
+																return next;
+															})
+														}
+													>
+														ändern
+													</button>
+												</p>
+											) : (
+												<div className="mt-2 flex flex-wrap gap-2">
+													{offen.vorschlaege.map((vorschlag) => (
+														<Button
+															key={vorschlag.id}
+															type="button"
+															size="sm"
+															variant="outline"
+															onClick={() =>
+																setNames((current) => ({
+																	...current,
+																	[key]: {
+																		art: offen.art,
+																		schreibweise: offen.schreibweise,
+																		ziel_id: vorschlag.id,
+																	},
+																}))
+															}
+														>
+															{vorschlag.label}
+														</Button>
+													))}
+													<Button
+														type="button"
+														size="sm"
+														onClick={() =>
+															setNames((current) => ({
+																...current,
+																[key]: {
+																	art: offen.art,
+																	schreibweise: offen.schreibweise,
+																	neu: true,
+																},
+															}))
+														}
+													>
+														<Plus className="mr-1 h-3.5 w-3.5" />
+														Neu anlegen
+													</Button>
+												</div>
+											)}
+										</div>
+									);
+								})}
+							</div>
 						) : null}
 						{preview.noteCandidates.length ? (
 							<details className="mt-3 rounded-lg border border-warning/35 bg-warning/10 p-3">
@@ -2179,16 +2357,18 @@ function HelperHoursImport({
 									}
 									confirmImport();
 								}}
-								disabled={loading !== null}
+								disabled={loading !== null || offeneNamen > 0}
 							>
 								{loading === "apply" ? (
 									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 								) : (
 									<Upload className="mr-2 h-4 w-4" />
 								)}
-								{openIssues > 0
-									? `${openIssues} Hinweise prüfen`
-									: `${preview.toImport} geprüfte Einträge importieren`}
+								{offeneNamen > 0
+									? `${offeneNamen} Zuordnungen offen`
+									: openIssues > 0
+										? `${openIssues} Hinweise prüfen`
+										: `${preview.toImport} geprüfte Einträge importieren`}
 							</Button>
 						) : null}
 						<ConfirmDialog

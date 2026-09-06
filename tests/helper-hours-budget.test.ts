@@ -93,19 +93,23 @@ describe("helper-hour categories", () => {
 			).toBe(false);
 	});
 
-	it("still accepts new hours as a club contribution", () => {
-		expect(
-			v.safeParse(HelperHourCreateSchema, {
-				idempotency_key: "00000000-0000-4000-8000-000000000002",
-				datum: "2026-08-16",
-				veranstaltung: "Vereinsfest",
-				nachname: "Beispiel",
-				vorname: "Erika",
-				kategorie: "gesamtverein",
-				minuten: 120,
-				bemerkung: "",
-			}).success,
-		).toBe(true);
+	// Helfer und Veranstaltung kommen aus dem Katalog, nicht aus Freitext.
+	it("verlangt Katalogverweise statt getippter Namen", () => {
+		const gueltig = {
+			idempotency_key: "00000000-0000-4000-8000-000000000002",
+			datum: "2026-08-16",
+			veranstaltung_id: "00000000-0000-4000-8000-000000000010",
+			person_id: "00000000-0000-4000-8000-000000000011",
+			kategorie: "gesamtverein",
+			minuten: 120,
+			bemerkung: "",
+		};
+		expect(v.safeParse(HelperHourCreateSchema, gueltig).success).toBe(true);
+		for (const kaputt of [
+			{ ...gueltig, person_id: "Erika Beispiel" },
+			{ ...gueltig, veranstaltung_id: "Vereinsfest" },
+		])
+			expect(v.safeParse(HelperHourCreateSchema, kaputt).success).toBe(false);
 	});
 
 	it("validates creating and updating a category", () => {
