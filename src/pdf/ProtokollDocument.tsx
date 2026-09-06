@@ -214,7 +214,9 @@ function makeStyles(s: number) {
 			fontSize: f(9),
 			fontFamily: "Helvetica",
 			color: BRAND.ink,
-			backgroundColor: "#FFFDF8",
+			// Reines Weiß: das Protokoll ist ein Buchungsbeleg und soll auf jedem
+			// Drucker und in jedem Viewer wie ein normales Blatt aussehen.
+			backgroundColor: "#FFFFFF",
 			// No page-level lineHeight on purpose: it leaks into the fixed,
 			// absolutely positioned footer and collapses its stacked rows to a
 			// single line (react-pdf quirk), which hid the address/board lines.
