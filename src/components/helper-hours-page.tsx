@@ -45,6 +45,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
 	Dialog,
@@ -347,34 +348,6 @@ export function HelperHoursPage({
 
 	return (
 		<div className="space-y-6">
-			<HelperHoursPeriodOverview
-				year={year}
-				years={data?.years ?? []}
-				summary={data?.summary ?? { entries: 0, helpers: 0, minutes: 0 }}
-				distribution={data?.distribution ?? []}
-				isLoading={isLoading}
-				onYearChange={onYearChange}
-			/>
-			<HelperOverview
-				year={year}
-				helpers={data?.helpers ?? []}
-				totalMinutes={data?.summary.minutes ?? 0}
-				isLoading={isLoading}
-			/>
-			<HelperHoursBudgets
-				budgets={data?.budgets ?? []}
-				contributions={data?.contributions ?? []}
-				expenses={data?.expenses ?? []}
-				valueCent={data?.valueCent ?? 600}
-				selected={activeDepartment}
-				onSelected={setSelectedDepartment}
-				isAdmin={isAdmin}
-				onChanged={() =>
-					queryClient.invalidateQueries({
-						queryKey: orpc.helperHours.list.key({ type: "query" }),
-					})
-				}
-			/>
 			<Card variant="hero">
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2">
@@ -535,6 +508,46 @@ export function HelperHoursPage({
 					</form>
 				</CardContent>
 			</Card>
+			{/* Auswertung kommt nach der Erfassung: die meisten Mitglieder tragen nur
+			    ein. Ein einziger Aufklapper, damit die Karten ihre eigenen
+			    Ueberschriften behalten und nichts doppelt steht. */}
+			<CollapsibleSection
+				title="Auswertung"
+				description="Jahreszahlen, Rangfolge der Helfer, Abteilungsguthaben und alle Einträge."
+				defaultOpen={isAdmin}
+			>
+				<div className="space-y-6">
+					<HelperHoursPeriodOverview
+						year={year}
+						years={data?.years ?? []}
+						summary={data?.summary ?? { entries: 0, helpers: 0, minutes: 0 }}
+						distribution={data?.distribution ?? []}
+						isLoading={isLoading}
+						onYearChange={onYearChange}
+					/>
+					<HelperOverview
+						year={year}
+						helpers={data?.helpers ?? []}
+						totalMinutes={data?.summary.minutes ?? 0}
+						isLoading={isLoading}
+					/>
+					<HelperHoursBudgets
+						budgets={data?.budgets ?? []}
+						contributions={data?.contributions ?? []}
+						expenses={data?.expenses ?? []}
+						valueCent={data?.valueCent ?? 600}
+						selected={activeDepartment}
+						onSelected={setSelectedDepartment}
+						isAdmin={isAdmin}
+						onChanged={() =>
+							queryClient.invalidateQueries({
+								queryKey: orpc.helperHours.list.key({ type: "query" }),
+							})
+						}
+					/>
+					<HelperHoursEntries year={year} />
+				</div>
+			</CollapsibleSection>
 			{isAdmin ? <HelperHoursImport onImported={refreshHours} /> : null}
 			{isAdmin ? (
 				<HelperHourExpenseImport
@@ -545,7 +558,6 @@ export function HelperHoursPage({
 					}
 				/>
 			) : null}
-			<HelperHoursEntries year={year} />
 		</div>
 	);
 }
