@@ -246,6 +246,11 @@ export function HelperHourNoteRulesForm() {
 	async function refresh() {
 		await Promise.all([
 			refetch(),
+			// Eine Regel bucht Stunden um, also stimmen auch die Zahlen der Punkte
+			// und der Auswertung nicht mehr.
+			queryClient.invalidateQueries({
+				queryKey: orpc.helperHours.categories.key({ type: "query" }),
+			}),
 			queryClient.invalidateQueries({
 				queryKey: orpc.helperHours.list.key({ type: "query" }),
 			}),
@@ -310,8 +315,9 @@ export function HelperHourNoteRulesForm() {
 						className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm"
 					>
 						<span>
-							Vermerk <span className="font-medium">{rule.vermerk}</span> bucht
-							auf <span className="font-medium">{rule.kategorie_label}</span>
+							Zeilen mit <span className="font-medium">"{rule.vermerk}"</span>{" "}
+							in der Spalte Sonstiges buchen auf den Punkt{" "}
+							<span className="font-medium">{rule.kategorie_label}</span>
 						</span>
 						<Button
 							type="button"

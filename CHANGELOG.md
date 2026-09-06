@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an diesem Projekt. Neueste zuerst. Die Version
 hier entspricht `package.json` und der Versionsmarke in der App.
 
+## 1.46.1 - 2026-09-06
+
+- Die Seiten der PDF-Protokolle sind jetzt rein weiß statt cremefarben.
+- Eine Vermerkregel las sich wie ein Selbstbezug ("Vermerk Kinderturnen bucht
+  auf Kinderturnen"). Sie steht jetzt als "Zeilen mit Kinderturnen in der Spalte
+  Sonstiges buchen auf den Punkt Kinderturnen", damit erkennbar ist, dass links
+  ein Freitext aus der Liste und rechts ein Punkt in Rendant steht.
+- Nach dem Anlegen einer Vermerkregel zeigten die Punkte weiter ihre alten
+  Stundenzahlen, bis die Seite neu geladen wurde.
+
 ## 1.46.0 - 2026-09-06
 
 - Untergruppen, die in der Liste nur als Vermerk in der Spalte "Sonstiges"
