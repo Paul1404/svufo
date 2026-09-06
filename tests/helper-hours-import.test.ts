@@ -66,6 +66,7 @@ async function parse(
 	bytes: Uint8Array,
 	digest: string,
 	aliases: Parameters<typeof parseHelperHoursWorkbook>[4] = [],
+	noteRules: Parameters<typeof parseHelperHoursWorkbook>[5] = [],
 ) {
 	return parseHelperHoursWorkbook(
 		bytes,
@@ -73,6 +74,7 @@ async function parse(
 		CATEGORIES,
 		digest,
 		aliases,
+		noteRules,
 	);
 }
 
@@ -722,5 +724,71 @@ describe("Hinterlegte Namensvarianten", () => {
 			vorname: "Peter",
 		});
 		expect(result.rows[0].repairs).toEqual([]);
+	});
+});
+
+describe("Vermerkregeln", () => {
+	async function blatt(zeilen: Array<[string, number, number, string]>) {
+		// [Punktspalte, Stunden, Summe, Vermerk]
+		const workbook = new ExcelJS.Workbook();
+		const sheet = workbook.addWorksheet("Juni_26");
+		sheet.addRow(HEADER);
+		zeilen.forEach(([spalte, stunden, summe, vermerk], index) => {
+			const zelle = HEADER.indexOf(spalte);
+			const row: Array<string | number | null> = [
+				`0${index + 1}.06.2026`, "Sonntag", "Wolf", "Roman",
+				null, null, null, null, null, null, null, null, summe, vermerk,
+			];
+			row[zelle] = stunden;
+			sheet.addRow(row);
+		});
+		return new Uint8Array(await workbook.xlsx.writeBuffer());
+	}
+	const regel = [{ vermerk: "Kinderturnen", kategorie_code: "combo" }];
+
+	it("bucht die Stunden auf den Punkt der Regel um", async () => {
+		const bytes = await blatt([["Gymnastik", 6, 6, "Kinderturnen"]]);
+		const ohne = await parse(bytes, "a".repeat(64));
+		expect(ohne.rows[0].allocations).toEqual({ gymnastik: 360 });
+
+		const mit = await parse(bytes, "a".repeat(64), [], regel);
+		expect(mit.rows[0].allocations).toEqual({ combo: 360 });
+		expect(mit.rows[0].gemeldete_summe_minuten).toBe(360);
+		expect(mit.rows[0].repairs).toContain("note_rule");
+		// Der Originalwert bleibt nachvollziehbar.
+		expect(mit.rows[0].originalValues.allocations).toEqual({ gymnastik: 360 });
+	});
+
+	it("lässt Zeilen mit anderem oder ohne Vermerk unberührt", async () => {
+		const bytes = await blatt([
+			["Gymnastik", 6, 6, "Lina-Garde"],
+			["Gymnastik", 6, 6, ""],
+		]);
+		const r = await parse(bytes, "b".repeat(64), [], regel);
+		for (const row of r.rows) {
+			expect(row.allocations).toEqual({ gymnastik: 360 });
+			expect(row.repairs).not.toContain("note_rule");
+		}
+	});
+
+	it("meldet einen Vermerk nicht mehr, für den es eine Regel gibt", async () => {
+		const bytes = await blatt([
+			["Gymnastik", 6, 6, "Kinderturnen"],
+			["Gymnastik", 6, 6, "Kinderturnen"],
+		]);
+		expect((await parse(bytes, "c".repeat(64))).noteCandidates).toHaveLength(1);
+		expect(
+			(await parse(bytes, "c".repeat(64), [], regel)).noteCandidates,
+		).toEqual([]);
+	});
+
+	it("löst eine Summenabweichung mit auf, weil die ganze Zeile umgebucht wird", async () => {
+		const bytes = await blatt([["Gymnastik", 4, 6, "Kinderturnen"]]);
+		expect((await parse(bytes, "d".repeat(64))).rows[0].issues).toContain(
+			"total_mismatch",
+		);
+		const mit = await parse(bytes, "d".repeat(64), [], regel);
+		expect(mit.rows[0].issues).toEqual([]);
+		expect(mit.rows[0].allocations).toEqual({ combo: 360 });
 	});
 });

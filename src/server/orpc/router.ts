@@ -21,6 +21,8 @@ import {
 	HelperHourListSchema,
 	HelperHourNameAliasCreateSchema,
 	HelperHourNameAliasDeleteSchema,
+	HelperHourNoteRuleCreateSchema,
+	HelperHourNoteRuleDeleteSchema,
 	HelperHourValueSchema,
 	HistoricalProtocolDraftAnalyzeSchema,
 	HistoricalProtocolDraftBulkUpdateSchema,
@@ -93,10 +95,13 @@ import {
 	createHelperHour,
 	createHelperHourExpense,
 	createHelperHourNameAlias,
+	createHelperHourNoteRule,
 	deleteHelperHourNameAlias,
+	deleteHelperHourNoteRule,
 	listHelperHourEntries,
 	listHelperHourNameAliases,
 	listHelperHourNameVariants,
+	listHelperHourNoteRules,
 	listHelperHours,
 } from "@/server/services/helper-hours";
 import {
@@ -1390,6 +1395,21 @@ const helperHours = {
 		.input(HelperHourNameAliasDeleteSchema)
 		.handler(({ input, context }) =>
 			deleteHelperHourNameAlias(input.id, context.user, {
+				request: requestAuditContext(context),
+			}),
+		),
+	noteRules: authed.handler(() => listHelperHourNoteRules()),
+	createNoteRule: adminOnly
+		.input(HelperHourNoteRuleCreateSchema)
+		.handler(({ input, context }) =>
+			createHelperHourNoteRule(input, context.user, {
+				request: requestAuditContext(context),
+			}),
+		),
+	deleteNoteRule: adminOnly
+		.input(HelperHourNoteRuleDeleteSchema)
+		.handler(({ input, context }) =>
+			deleteHelperHourNoteRule(input.id, context.user, {
 				request: requestAuditContext(context),
 			}),
 		),

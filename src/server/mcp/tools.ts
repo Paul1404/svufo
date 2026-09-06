@@ -16,6 +16,8 @@ import {
 	HelperHourListSchema,
 	HelperHourNameAliasCreateSchema,
 	HelperHourNameAliasDeleteSchema,
+	HelperHourNoteRuleCreateSchema,
+	HelperHourNoteRuleDeleteSchema,
 	HistoricalProtocolDraftAnalyzeSchema,
 	HistoricalProtocolDraftBulkUpdateSchema,
 	HistoricalProtocolDraftGetSchema,
@@ -722,6 +724,36 @@ const TOOLS: McpTool[] = [
 		annotations: WRITE,
 		execute: (context, input) =>
 			call(router.helperHours.correctEntry, input, { context }),
+	}),
+	defineTool({
+		name: "list_helper_hour_note_rules",
+		description:
+			"List the rules that book rows carrying a given note in the spreadsheet's Sonstiges column onto a point of their own, e.g. Kinderturnen onto its own point instead of Gymnastik.",
+		minMode: "readonly",
+		input: EmptyInput,
+		annotations: READ_ONLY,
+		execute: (context) =>
+			call(router.helperHours.noteRules, undefined, { context }),
+	}),
+	defineTool({
+		name: "create_helper_hour_note_rule",
+		description:
+			"Book every row whose note matches onto the given point, now and on every future import, and move the hours already stored. This shifts hours between departments, so it needs explicit user authorization for the specific note and point.",
+		minMode: "admin",
+		input: HelperHourNoteRuleCreateSchema,
+		annotations: WRITE,
+		execute: (context, input) =>
+			call(router.helperHours.createNoteRule, input, { context }),
+	}),
+	defineTool({
+		name: "delete_helper_hour_note_rule",
+		description:
+			"Remove a note rule. Hours already moved keep their point until those sheets are imported again. Requires explicit user authorization.",
+		minMode: "admin",
+		input: HelperHourNoteRuleDeleteSchema,
+		annotations: DESTRUCTIVE,
+		execute: (context, input) =>
+			call(router.helperHours.deleteNoteRule, input, { context }),
 	}),
 	defineTool({
 		name: "create_helper_hour_category",

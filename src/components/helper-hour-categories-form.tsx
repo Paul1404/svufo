@@ -217,6 +217,158 @@ export function HelperHourNameVariantsForm() {
 	);
 }
 
+type NoteRule = {
+	id: string;
+	vermerk: string;
+	kategorie_code: string;
+	kategorie_label: string;
+};
+
+/**
+ * Sub-groups the spreadsheet only names in its "Sonstiges" column. A rule turns
+ * such a note into a real booking without touching the monthly sheets.
+ */
+export function HelperHourNoteRulesForm() {
+	const queryClient = useQueryClient();
+	const { data: rules, refetch } = useQuery(
+		orpc.helperHours.noteRules.queryOptions({}),
+	);
+	const { data: categoryData } = useQuery(
+		orpc.helperHours.categories.queryOptions({}),
+	);
+	const categories = ((categoryData ?? []) as Category[]).filter(
+		(c) => c.aktiv,
+	);
+	const [vermerk, setVermerk] = useState("");
+	const [kategorie, setKategorie] = useState("");
+	const [pending, setPending] = useState(false);
+
+	async function refresh() {
+		await Promise.all([
+			refetch(),
+			queryClient.invalidateQueries({
+				queryKey: orpc.helperHours.list.key({ type: "query" }),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.helperHours.entries.key({ type: "query" }),
+			}),
+		]);
+	}
+
+	async function create(event: React.FormEvent) {
+		event.preventDefault();
+		if (!vermerk.trim() || !kategorie) {
+			toast.error("Bitte Vermerk und Punkt angeben");
+			return;
+		}
+		setPending(true);
+		try {
+			const saved = await orpcClient.helperHours.createNoteRule({
+				vermerk,
+				kategorie,
+				bemerkung: "",
+			});
+			setVermerk("");
+			await refresh();
+			toast.success(`${saved.updated} Einträge umgebucht`);
+		} catch (error) {
+			toast.error(orpcMessage(error, "Anlegen fehlgeschlagen"));
+		} finally {
+			setPending(false);
+		}
+	}
+
+	async function remove(id: string) {
+		setPending(true);
+		try {
+			await orpcClient.helperHours.deleteNoteRule({ id });
+			await refresh();
+			toast.success("Regel entfernt");
+		} catch (error) {
+			toast.error(orpcMessage(error, "Entfernen fehlgeschlagen"));
+		} finally {
+			setPending(false);
+		}
+	}
+
+	return (
+		<Card>
+			<CardHeader>
+				<p className="font-medium">Vermerke als Punkt buchen</p>
+				<p className="text-xs text-muted-foreground">
+					Steht in der Spalte "Sonstiges" eine Untergruppe wie Kinderturnen,
+					zählen deren Stunden bisher für die angekreuzte Abteilung. Eine Regel
+					bucht sie stattdessen auf einen eigenen Punkt, bei jedem Import und
+					ohne neue Spalte in der Liste. Vorhandene Stunden werden sofort
+					umgebucht.
+				</p>
+			</CardHeader>
+			<CardContent className="space-y-2">
+				{((rules ?? []) as NoteRule[]).map((rule) => (
+					<div
+						key={rule.id}
+						className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm"
+					>
+						<span>
+							Vermerk <span className="font-medium">{rule.vermerk}</span> bucht
+							auf <span className="font-medium">{rule.kategorie_label}</span>
+						</span>
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							disabled={pending}
+							onClick={() => void remove(rule.id)}
+						>
+							<Trash2 className="h-3.5 w-3.5" />
+						</Button>
+					</div>
+				))}
+				<form
+					className="grid gap-3 rounded-xl border border-dashed p-3 sm:grid-cols-[2fr_2fr_auto]"
+					onSubmit={create}
+				>
+					<div className="space-y-1.5">
+						<Label htmlFor="hhn-vermerk">Vermerk in "Sonstiges"</Label>
+						<Input
+							id="hhn-vermerk"
+							placeholder="z. B. Kinderturnen"
+							value={vermerk}
+							maxLength={40}
+							onChange={(event) => setVermerk(event.target.value)}
+						/>
+					</div>
+					<div className="space-y-1.5">
+						<Label>Bucht auf Punkt</Label>
+						<Select value={kategorie} onValueChange={setKategorie}>
+							<SelectTrigger>
+								<SelectValue placeholder="Punkt wählen" />
+							</SelectTrigger>
+							<SelectContent>
+								{categories.map((entry) => (
+									<SelectItem key={entry.code} value={entry.code}>
+										{entry.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<div className="flex items-end">
+						<Button disabled={pending}>
+							{pending ? (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							) : (
+								<Plus className="mr-2 h-4 w-4" />
+							)}
+							Anlegen
+						</Button>
+					</div>
+				</form>
+			</CardContent>
+		</Card>
+	);
+}
+
 export function HelperHourCategoriesForm({
 	valueCent,
 	valueUpdatedAt,

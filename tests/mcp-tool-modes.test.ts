@@ -46,6 +46,8 @@ describe("toolsForMode", () => {
 			"correct_helper_hour_entry",
 			"create_helper_hour_category",
 			"update_helper_hour_category",
+			"create_helper_hour_note_rule",
+			"delete_helper_hour_note_rule",
 		]) {
 			expect(readonly.has(tool)).toBe(false);
 			expect(admin.has(tool)).toBe(true);
@@ -56,6 +58,7 @@ describe("toolsForMode", () => {
 			"list_helper_hour_categories",
 			"list_helper_name_variants",
 			"list_helper_name_aliases",
+			"list_helper_hour_note_rules",
 		]) {
 			expect(readonly.has(tool)).toBe(true);
 		}

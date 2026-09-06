@@ -29,6 +29,7 @@ export type HelperHoursImportRepairCode =
 	| "name_swapped"
 	| "name_completed"
 	| "name_alias"
+	| "note_rule"
 	| "sheet_year";
 
 export type HelperHoursImportOriginalValues = {
@@ -110,6 +111,8 @@ const REPAIR_MESSAGES: Record<HelperHoursImportRepairCode, string> = {
 	name_swapped: "Vor- und Nachname waren vertauscht und wurden getauscht.",
 	name_completed: "Fehlender Namensteil aus der Liste ergänzt.",
 	name_alias: "Schreibweise laut hinterlegter Namensvariante vereinheitlicht.",
+	note_rule:
+		"Stunden laut hinterlegter Regel auf den Punkt des Vermerks gebucht.",
 	sheet_year: "Jahreszahl an das Monatsblatt angepasst.",
 };
 const ISSUE_CODES = new Set<HelperHoursImportIssueCode>(
@@ -712,6 +715,12 @@ export function helperHourNoteCandidates(
 	);
 }
 
+/** "A row noting X books its hours on point Y", as decided by the club. */
+export type HelperHourNoteRule = {
+	vermerk: string;
+	kategorie_code: string;
+};
+
 /** "When the list writes X, mean Y", as decided by the club. */
 export type HelperHourNameAlias = {
 	von_nachname: string;
@@ -726,6 +735,7 @@ export async function parseHelperHoursWorkbook(
 	categories: HelperHourCategory[],
 	sourceDigest = createHash("sha256").update(bytes).digest("hex"),
 	aliases: HelperHourNameAlias[] = [],
+	noteRules: HelperHourNoteRule[] = [],
 ): Promise<HelperHoursImportResult> {
 	const workbook = new ExcelJS.Workbook();
 	try {
@@ -909,6 +919,9 @@ export async function parseHelperHoursWorkbook(
 			entry,
 		]),
 	);
+	const ruleByNote = new Map(
+		noteRules.map((rule) => [normalizeHelperHourLabel(rule.vermerk), rule]),
+	);
 	const names = canonicalNames(raw);
 	const rows: HelperHoursImportRow[] = [];
 	for (const entry of raw) {
@@ -1009,14 +1022,30 @@ export async function parseHelperHoursWorkbook(
 			} else issues.push("total_mismatch");
 		} else if (total !== allocated) issues.push("total_mismatch");
 
+		const rule = entry.bemerkung
+			? ruleByNote.get(normalizeHelperHourLabel(entry.bemerkung))
+			: undefined;
+		const ruleCategory = rule
+			? categories.find((category) => category.code === rule.kategorie_code)
+			: undefined;
+		const finalMinutes = total || allocatedMinutes(allocations);
+		let finalAllocations = allocations;
+		if (ruleCategory && finalMinutes > 0) {
+			finalAllocations = { [ruleCategory.code]: finalMinutes };
+			repairs.push("note_rule");
+			// A mismatch the rule has just resolved is no longer a question.
+			const index = issues.indexOf("total_mismatch");
+			if (index >= 0) issues.splice(index, 1);
+		}
+
 		const row: HelperHoursImportRow = {
 			idempotency_key: uuidFor(sourceDigest, entry.sheet, entry.rowNumber),
 			datum,
 			veranstaltung: entry.veranstaltung,
 			nachname,
 			vorname,
-			allocations,
-			gemeldete_summe_minuten: total || allocated,
+			allocations: finalAllocations,
+			gemeldete_summe_minuten: finalMinutes,
 			bemerkung: entry.bemerkung,
 			warnings: [],
 			issues,
@@ -1062,7 +1091,11 @@ export async function parseHelperHoursWorkbook(
 				minutes: row.gemeldete_summe_minuten,
 			})),
 			categories,
-		).slice(0, 20),
+		)
+			.filter(
+				(entry) => !ruleByNote.has(normalizeHelperHourLabel(entry.vermerk)),
+			)
+			.slice(0, 20),
 		repairs: rows.reduce((sum, row) => sum + row.repairs.length, 0),
 		warnings: rows.reduce((sum, row) => sum + row.warnings.length, 0),
 	};
