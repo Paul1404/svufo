@@ -41,6 +41,7 @@ export function CatalogPicker({
 	id?: string;
 }) {
 	const [query, setQuery] = useState("");
+	const [open, setOpen] = useState(false);
 	const [creating, setCreating] = useState(false);
 	const selected = options.find((option) => option.id === value) ?? null;
 	const treffer = useMemo(() => {
@@ -100,10 +101,15 @@ export function CatalogPicker({
 							disabled={disabled}
 							placeholder={placeholder}
 							className="pl-8"
+							onFocus={() => setOpen(true)}
 							onChange={(event) => setQuery(event.target.value)}
 						/>
 					</div>
-					<div className="max-h-52 overflow-y-auto rounded-lg border">
+					{/* Zwei dauerhaft offene Listen im Formular waeren eine Wand. */}
+					<div
+						className="max-h-52 overflow-y-auto rounded-lg border"
+						hidden={!open && query.trim().length === 0}
+					>
 						{treffer.length === 0 ? (
 							<p className="p-3 text-center text-xs text-muted-foreground">
 								{emptyHint}
@@ -118,6 +124,7 @@ export function CatalogPicker({
 									onClick={() => {
 										onChange(option.id);
 										setQuery("");
+										setOpen(false);
 									}}
 								>
 									{option.label}

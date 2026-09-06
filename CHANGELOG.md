@@ -3,6 +3,16 @@
 Alle nennenswerten Änderungen an diesem Projekt. Neueste zuerst. Die Version
 hier entspricht `package.json` und der Versionsmarke in der App.
 
+## 1.47.1 - 2026-09-06
+
+- Das Erfassen einer Helferstunde steht jetzt ganz oben. Bisher lagen drei
+  Auswertungsblöcke davor, darunter eine Tabelle mit allen Helfern.
+- Jahreszahlen, Rangfolge, Abteilungsguthaben und die Liste aller Einträge
+  stehen zusammengefasst unter "Auswertung". Für Admins ist sie offen, für alle
+  anderen zugeklappt und einen Klick entfernt.
+- Die Auswahllisten für Helfer und Veranstaltung öffnen sich erst beim Tippen
+  oder Anklicken, statt dauerhaft aufgeklappt zu sein.
+
 ## 1.47.0 - 2026-09-06
 
 - Helfer und Veranstaltungen werden jetzt ausgewählt statt getippt. Beim
