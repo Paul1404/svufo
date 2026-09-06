@@ -3,6 +3,21 @@
 Alle nennenswerten Änderungen an diesem Projekt. Neueste zuerst. Die Version
 hier entspricht `package.json` und der Versionsmarke in der App.
 
+## 1.46.0 - 2026-09-06
+
+- Untergruppen, die in der Liste nur als Vermerk in der Spalte "Sonstiges"
+  stehen, lassen sich jetzt auf einen eigenen Punkt buchen. Unter Einstellungen,
+  Helferstunden legst du dafür eine Regel an, etwa "Kinderturnen bucht auf
+  Kinderturnen". Die vorhandenen Stunden werden sofort umgebucht.
+- Die Regel gilt bei jedem weiteren Import. Die Liste braucht dafür keine neue
+  Spalte, ihre Monatsblätter bleiben unverändert.
+- Weicht in einer solchen Zeile die gemeldete Summe von der Zuordnung ab, ist
+  das mit der Umbuchung erledigt, weil die ganze Zeile auf den neuen Punkt geht.
+- Ein Vermerk, für den es eine Regel gibt, wird in der Importprüfung nicht mehr
+  als offener Punkt gemeldet.
+- Auch über die MCP-Schnittstelle verfügbar: Regeln auflisten, anlegen und
+  entfernen. Anlegen und Entfernen nur mit Adminzugang.
+
 ## 1.45.0 - 2026-09-04
 
 - Namensvarianten lassen sich jetzt dauerhaft zusammenführen. Unter

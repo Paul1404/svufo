@@ -218,6 +218,13 @@
       "when": 1788538184714,
       "tag": "0030_helper_hour_name_aliases",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1788697782751,
+      "tag": "0031_helper_hour_note_rules",
+      "breakpoints": true
     }
   ]
 }

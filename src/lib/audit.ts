@@ -118,6 +118,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
 	"helferstunden.name_alias_created": "Namensvariante zusammengeführt",
 	"helferstunden.name_alias_deleted": "Namensvariante entfernt",
 	"helferstunden.entry_corrected": "Helferstunde korrigiert",
+	"helferstunden.note_rule_created": "Vermerkregel angelegt",
+	"helferstunden.note_rule_deleted": "Vermerkregel entfernt",
 };
 
 export function auditActionLabel(action: string): string {

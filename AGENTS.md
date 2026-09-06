@@ -70,6 +70,16 @@ update the appropriate canonical documentation in the same change.
 - A column carrying hours that matches no category is reported, never ignored,
   and so is a recurring value in the "Sonstiges" column that names something no
   category covers.
+- The monthly sheets are Excel tables whose definitions ExcelJS misparses
+  (`ref` undefined, partial column list) and only preserves verbatim on write.
+  Cell edits are safe; never let a script insert or delete rows or columns in
+  them, and clear a row instead of deleting it. Structural spreadsheet changes
+  belong in Excel.
+- A note the list carries in its "Sonstiges" column can be booked onto a point
+  of its own through `helper_hour_note_rules`, which moves the whole row and is
+  reapplied on every import. That is how a sub-group becomes a point without
+  restructuring the sheets. It shifts hours between departments, so it is
+  recorded as a repair and never inferred.
 - A merged spelling is stored in `helper_hour_name_aliases` and reapplied on
   every import, because importing replaces the monthly sheets and would
   otherwise undo the rename. Merging also rewrites the hours already stored, so

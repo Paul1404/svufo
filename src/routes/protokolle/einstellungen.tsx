@@ -16,6 +16,7 @@ import { EmailSettingsForm } from "@/components/email-settings-form";
 import {
 	HelperHourCategoriesForm,
 	HelperHourNameVariantsForm,
+	HelperHourNoteRulesForm,
 } from "@/components/helper-hour-categories-form";
 import { McpSettingsPanel } from "@/components/mcp-settings-panel";
 import { NotificationPrefForm } from "@/components/notification-pref-form";
@@ -180,6 +181,7 @@ function EinstellungenPage() {
 								valueCent={helperHourValue.wert_cent}
 								valueUpdatedAt={helperHourValue.updated_at}
 							/>
+							<HelperHourNoteRulesForm />
 							<HelperHourNameVariantsForm />
 						</section>
 					) : null}

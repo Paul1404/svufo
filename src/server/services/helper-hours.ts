@@ -18,6 +18,7 @@ import type {
 	HelperHourEntryCorrectInput,
 	HelperHourExpenseCreateInput,
 	HelperHourNameAliasCreateInput,
+	HelperHourNoteRuleCreateInput,
 } from "@/lib/schemas";
 import { db } from "@/server/db";
 import {
@@ -25,6 +26,7 @@ import {
 	helperHourCategories,
 	helperHourExpenses,
 	helperHourNameAliases,
+	helperHourNoteRules,
 	helperHours,
 } from "@/server/db/schema";
 import type { AuthUser } from "@/server/orpc/base";
@@ -1121,5 +1123,120 @@ export async function correctHelperHourEntry(
 			},
 		});
 		return row;
+	});
+}
+
+export async function listHelperHourNoteRules() {
+	const rows = await db
+		.select({
+			id: helperHourNoteRules.id,
+			vermerk: helperHourNoteRules.vermerk,
+			bemerkung: helperHourNoteRules.bemerkung,
+			kategorie_id: helperHourNoteRules.kategorie_id,
+			kategorie_code: helperHourCategories.code,
+			kategorie_label: helperHourCategories.label,
+		})
+		.from(helperHourNoteRules)
+		.innerJoin(
+			helperHourCategories,
+			eq(helperHourCategories.id, helperHourNoteRules.kategorie_id),
+		)
+		.orderBy(asc(helperHourNoteRules.vermerk));
+	return rows;
+}
+
+/**
+ * Records that rows carrying a given note belong to a point of their own, and
+ * moves the hours already stored. Both halves matter for the same reason the
+ * name variants do: the next import replaces the monthly sheets, so a one-off
+ * correction would not survive it.
+ */
+export async function createHelperHourNoteRule(
+	input: HelperHourNoteRuleCreateInput,
+	actor: AuthUser,
+	audit: Pick<RecordAuditInput, "request">,
+) {
+	return db.transaction(async (tx) => {
+		const category = await requireCategory(tx, input.kategorie);
+		const [row] = await tx
+			.insert(helperHourNoteRules)
+			.values({
+				vermerk: input.vermerk,
+				kategorie_id: category.id,
+				bemerkung: input.bemerkung,
+				erstellt_von_user_id: actor.id,
+				erstellt_von_name: actor.name,
+			})
+			.onConflictDoNothing()
+			.returning();
+		if (!row) throw new Error("Für diesen Vermerk gibt es bereits eine Regel");
+		// Move what is already stored, so the rule and the data agree at once.
+		const betroffen = await tx
+			.select({
+				id: helperHours.id,
+				minuten: helperHours.gemeldete_summe_minuten,
+			})
+			.from(helperHours)
+			.where(
+				sql`lower(trim(${helperHours.bemerkung})) = ${input.vermerk.trim().toLocaleLowerCase("de-DE")}`,
+			);
+		for (const eintrag of betroffen) {
+			await tx
+				.delete(helperHourAllocations)
+				.where(eq(helperHourAllocations.helper_hour_id, eintrag.id));
+			if (eintrag.minuten > 0)
+				await tx.insert(helperHourAllocations).values({
+					helper_hour_id: eintrag.id,
+					kategorie_id: category.id,
+					minuten: eintrag.minuten,
+				});
+		}
+		await recordAuditEventStrict(tx, {
+			category: "helferstunden",
+			action: "helferstunden.note_rule_created",
+			actor,
+			request: audit.request,
+			subject: {
+				type: "helferstunden_vermerkregel",
+				id: row.id,
+				label: row.vermerk,
+			},
+			metadata: {
+				vermerk: row.vermerk,
+				kategorie: category.code,
+				umgebuchte_eintraege: betroffen.length,
+				umgebuchte_minuten: betroffen.reduce((a, b) => a + b.minuten, 0),
+			},
+		});
+		return { ...row, updated: betroffen.length };
+	});
+}
+
+export async function deleteHelperHourNoteRule(
+	id: string,
+	actor: AuthUser,
+	audit: Pick<RecordAuditInput, "request">,
+) {
+	return db.transaction(async (tx) => {
+		const [row] = await tx
+			.delete(helperHourNoteRules)
+			.where(eq(helperHourNoteRules.id, id))
+			.returning();
+		if (!row) throw new Error("Regel nicht gefunden");
+		// Hours already moved keep their point; only future imports stop applying
+		// the rule, and the next import of those sheets restores the old booking.
+		await recordAuditEventStrict(tx, {
+			category: "helferstunden",
+			action: "helferstunden.note_rule_deleted",
+			actor,
+			request: audit.request,
+			subject: {
+				type: "helferstunden_vermerkregel",
+				id: row.id,
+				label: row.vermerk,
+			},
+			metadata: { vermerk: row.vermerk },
+		});
+		return { id: row.id };
 	});
 }

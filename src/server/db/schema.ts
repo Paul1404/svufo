@@ -465,6 +465,38 @@ export const helperHourNameAliases = pgTable(
 	],
 );
 
+/**
+ * "A row whose Sonstiges column says X books its hours on point Y." Lets a
+ * sub-group the spreadsheet only names in a free-text note become a real point
+ * without restructuring the monthly sheets, which are Excel tables whose
+ * definitions no script here can safely widen.
+ */
+export const helperHourNoteRules = pgTable(
+	"helper_hour_note_rules",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		vermerk: text("vermerk").notNull(),
+		kategorie_id: uuid("kategorie_id")
+			.notNull()
+			.references(() => helperHourCategories.id, { onDelete: "restrict" }),
+		bemerkung: text("bemerkung").notNull().default(""),
+		erstellt_von_user_id: text("erstellt_von_user_id").notNull(),
+		erstellt_von_name: text("erstellt_von_name").notNull(),
+		erstellt_am: timestamp("erstellt_am", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [
+		uniqueIndex("helper_hour_note_rules_vermerk_unique").on(
+			sql`lower(trim(${t.vermerk}))`,
+		),
+		check(
+			"helper_hour_note_rules_vermerk_check",
+			sql`length(trim(${t.vermerk})) BETWEEN 1 AND 40`,
+		),
+	],
+);
+
 export const helperHours = pgTable(
 	"helper_hours",
 	{

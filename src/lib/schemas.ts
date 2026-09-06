@@ -198,6 +198,24 @@ export const HelperHourNameAliasDeleteSchema = v.object({
 	id: v.pipe(v.string(), v.uuid()),
 });
 
+export const HelperHourNoteRuleCreateSchema = v.object({
+	vermerk: v.pipe(
+		v.string(),
+		v.trim(),
+		v.minLength(1, "Bitte den Vermerk angeben"),
+		v.maxLength(40),
+	),
+	kategorie: helperHourCategoryCode,
+	bemerkung: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(500)), ""),
+});
+export type HelperHourNoteRuleCreateInput = v.InferOutput<
+	typeof HelperHourNoteRuleCreateSchema
+>;
+
+export const HelperHourNoteRuleDeleteSchema = v.object({
+	id: v.pipe(v.string(), v.uuid()),
+});
+
 export const HelperHourEntryCorrectSchema = v.object({
 	id: v.pipe(v.string(), v.uuid()),
 	nachname: v.optional(helperHourPersonName),
