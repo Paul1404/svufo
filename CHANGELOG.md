@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an diesem Projekt. Neueste zuerst. Die Version
 hier entspricht `package.json` und der Versionsmarke in der App.
 
+## 1.47.2 - 2026-09-06
+
+- In den Suchfeldern für Helfer und Veranstaltung lief der Text unter das
+  Lupensymbol. Beide nutzen jetzt das Suchfeld der Anwendung, das seinen Abstand
+  selbst mitbringt.
+
 ## 1.47.1 - 2026-09-06
 
 - Das Erfassen einer Helferstunde steht jetzt ganz oben. Bisher lagen drei
