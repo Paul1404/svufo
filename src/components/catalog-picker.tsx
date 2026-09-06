@@ -1,4 +1,4 @@
-import { Check, Plus } from "lucide-react";
+import { Check, Loader2, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/input";
@@ -22,9 +22,8 @@ export function CatalogPicker({
 	value,
 	onChange,
 	onCreate,
-	placeholder = "Suchen",
+	placeholder = "Suchen oder neu anlegen",
 	emptyHint = "Nichts gefunden",
-	createLabel = "Neu anlegen",
 	disabled = false,
 	id,
 }: {
@@ -36,7 +35,6 @@ export function CatalogPicker({
 	onCreate?: (label: string) => Promise<string | null>;
 	placeholder?: string;
 	emptyHint?: string;
-	createLabel?: string;
 	disabled?: boolean;
 	id?: string;
 }) {
@@ -104,45 +102,52 @@ export function CatalogPicker({
 						onFocus={() => setOpen(true)}
 						onChange={(event) => setQuery(event.target.value)}
 					/>
-					{/* Zwei dauerhaft offene Listen im Formular waeren eine Wand. */}
+					{/* Anlegen steht als letzte Zeile in der Liste, nicht als Knopf
+					    darunter: so ist am selben Ort sichtbar, dass das Feld sowohl
+					    auswaehlt als auch anlegt. Zwei dauerhaft offene Listen im
+					    Formular waeren dagegen eine Wand, deshalb erst bei Fokus. */}
 					<div
 						className="max-h-52 overflow-y-auto rounded-lg border"
 						hidden={!open && query.trim().length === 0}
 					>
-						{treffer.length === 0 ? (
+						{treffer.map((option) => (
+							<button
+								key={option.id}
+								type="button"
+								disabled={disabled}
+								className="block w-full px-3 py-2 text-left text-sm hover:bg-muted/60"
+								onClick={() => {
+									onChange(option.id);
+									setQuery("");
+									setOpen(false);
+								}}
+							>
+								{option.label}
+							</button>
+						))}
+						{canCreate ? (
+							<button
+								type="button"
+								disabled={disabled || creating}
+								className="flex w-full items-center gap-2 border-t bg-muted/30 px-3 py-2 text-left text-sm font-medium text-primary hover:bg-muted/60 disabled:opacity-60"
+								onClick={() => void create()}
+							>
+								{creating ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<Plus className="h-3.5 w-3.5" />
+								)}
+								<span className="min-w-0 truncate">
+									„{query.trim()}" neu anlegen
+								</span>
+							</button>
+						) : null}
+						{treffer.length === 0 && !canCreate ? (
 							<p className="p-3 text-center text-xs text-muted-foreground">
 								{emptyHint}
 							</p>
-						) : (
-							treffer.map((option) => (
-								<button
-									key={option.id}
-									type="button"
-									disabled={disabled}
-									className="block w-full px-3 py-2 text-left text-sm hover:bg-muted/60"
-									onClick={() => {
-										onChange(option.id);
-										setQuery("");
-										setOpen(false);
-									}}
-								>
-									{option.label}
-								</button>
-							))
-						)}
+						) : null}
 					</div>
-					{canCreate ? (
-						<Button
-							type="button"
-							variant="secondary"
-							size="sm"
-							disabled={disabled || creating}
-							onClick={() => void create()}
-						>
-							<Plus className="mr-1 h-3.5 w-3.5" />
-							{createLabel}: {query.trim()}
-						</Button>
-					) : null}
 				</div>
 			)}
 		</div>

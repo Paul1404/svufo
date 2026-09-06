@@ -378,8 +378,7 @@ export function HelperHoursPage({
 							<CatalogPicker
 								id="hh-event"
 								label="Veranstaltung"
-								placeholder="Veranstaltung suchen"
-								createLabel="Veranstaltung anlegen"
+								placeholder="Veranstaltung suchen oder anlegen"
 								emptyHint="Keine Veranstaltung gefunden"
 								options={eventOptions}
 								value={form.veranstaltung_id || null}
@@ -403,8 +402,7 @@ export function HelperHoursPage({
 							<CatalogPicker
 								id="hh-person"
 								label="Helfer"
-								placeholder="Namen suchen"
-								createLabel="Helfer anlegen"
+								placeholder="Namen suchen oder anlegen"
 								emptyHint="Kein Helfer gefunden"
 								options={personOptions}
 								value={form.person_id || null}

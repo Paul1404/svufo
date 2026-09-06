@@ -3,6 +3,12 @@
 Alle nennenswerten Änderungen an diesem Projekt. Neueste zuerst. Die Version
 hier entspricht `package.json` und der Versionsmarke in der App.
 
+## 1.47.3 - 2026-09-06
+
+- Im Suchfeld für Helfer und Veranstaltung ist jetzt erkennbar, dass es beides
+  kann. Das Anlegen steht als letzte Zeile in der Trefferliste und nennt den
+  eingetippten Namen, statt als getrennter Knopf darunter zu stehen.
+
 ## 1.47.2 - 2026-09-06
 
 - In den Suchfeldern für Helfer und Veranstaltung lief der Text unter das
