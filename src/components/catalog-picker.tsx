@@ -1,7 +1,7 @@
-import { Check, Plus, Search } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export type CatalogOption = { id: string; label: string; aktiv?: boolean };
@@ -93,18 +93,17 @@ export function CatalogPicker({
 				</div>
 			) : (
 				<div className="space-y-2">
-					<div className="relative">
-						<Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-						<Input
-							id={id}
-							value={query}
-							disabled={disabled}
-							placeholder={placeholder}
-							className="pl-8"
-							onFocus={() => setOpen(true)}
-							onChange={(event) => setQuery(event.target.value)}
-						/>
-					</div>
+					{/* SearchInput besitzt seine Lupe und die noetige Polsterung selbst.
+					    Eine handgebaute Lupe mit pl-8 laeuft ab 640px unter den Text,
+					    weil sm:px-2.5 die Kaskade gewinnt. */}
+					<SearchInput
+						id={id}
+						value={query}
+						disabled={disabled}
+						placeholder={placeholder}
+						onFocus={() => setOpen(true)}
+						onChange={(event) => setQuery(event.target.value)}
+					/>
 					{/* Zwei dauerhaft offene Listen im Formular waeren eine Wand. */}
 					<div
 						className="max-h-52 overflow-y-auto rounded-lg border"
